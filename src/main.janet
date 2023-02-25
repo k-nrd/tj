@@ -44,6 +44,18 @@
   [Fiber :fiber]
   [Any :any])
 
+(defn- pp-typename [prim-type]
+  (case (prim-type :name)
+    :string "String"
+    :buffer "Buffer"
+    :number "Number"
+    :nil "Nil"
+    :symbol "Symbol"
+    :boolean "Boolean"
+    :keyword "Keyword"
+    :fiber "Fiber"
+    :any "Any"))
+
 (def- DEFAULT-RECORD
   @{:+ {:name :function :params {:variadic Number} :ret Number}})
 
@@ -95,7 +107,7 @@
 
 (defn- assert-type [declared inferred expr]
   (unless (same-type? declared inferred)
-    (errorf "\n\tDeclared %p type in %p, but %p is a %p.\n" (declared :name) expr (last expr) (inferred :name))))
+    (errorf "\n\tDeclared %s type in %p, but %p is a %s.\n" (pp-typename declared) expr (last expr) (pp-typename inferred))))
         
 (defn- tc [type-env expr]
   (defn tc-symbol [te e]
@@ -138,7 +150,6 @@
               (assert-type (get optional-params i) (tc te opt-arg) e)))
           (unless no-variadic-params
             (each var-arg (slice args variadic-start)
-              (print "Var arg: " var-arg "\tInferred: " (tc te var-arg))
               (assert-type variadic-params (tc te var-arg) e)))))))
 
   (defn tc-do [te e]
@@ -158,7 +169,7 @@
 
   (defn tc-tuple [te e]
     (let [ef (macex e)]
-      (case (keyword (get ef 0))
+      (case (keyword (first ef))
         :do (tc-do te ef)
         :def (tc-def te ef)
         (tc-application te ef))))
