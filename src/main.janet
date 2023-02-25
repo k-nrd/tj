@@ -101,7 +101,7 @@
   (each m metadata 
     (each l [Number String Buffer Symbol Keyword Boolean Nil Any]
       (cond 
-        (= l m) (set res l)
+        (= (l :name) m) (set res l)
         (dictionary? m) (set res (m :type)))))
   res)
 
@@ -160,9 +160,9 @@
 
   (defn tc-def [te e]
     (let [lhs (get e 1)
-          declared-type (defprim (extract-metadata (slice e 2 -1)))
+          declared-type (extract-metadata (slice e 2 -1))
           inferred-type (tc te (last e))]
-      (if (not (nil? (declared-type :name)))
+      (unless (nil? declared-type)
         (assert-type declared-type inferred-type e))
       (set-type te lhs inferred-type)
       inferred-type))
@@ -204,7 +204,7 @@
   
   (assert-type Number String '(def x :number "10"))
   
-  (extract-metadata '(:a :b :number))
+  (extract-metadata @[:a :b :number])
   (extract-metadata [:a :b {:type :number}])
   (extract-metadata [:a :b])
 
@@ -212,6 +212,7 @@
   (type-check "string")
   (type-check @"buffer")
   (type-check (def x 10))
+  (type-check (def x :string 10))
   (type-check (do 
                 (def x 10)
                 @"yolo"))
@@ -227,6 +228,5 @@
   (tc test-te (def x 6))
   (tc test-te (def y x))
 
-  (type-check (def x :string 10))
   (type-check (defn add [a b] (+ a b)))
   (type-check (if true true false)))
