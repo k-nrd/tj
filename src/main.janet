@@ -16,11 +16,11 @@
 (defn- same-type? [t1 t2]
   (= (t1 :name) (t2 :name)))
 
-(defn- create-type [name]
+(defn- defprim [name]
   {:name name})
 
-(defmacro- create-prim-types [& type-pairs]
-  ;(map (fn [tp] ~(def ,(first tp) ,(create-type (last tp)))) type-pairs))
+(defmacro- defprimitives [& type-pairs]
+  ;(map (fn [tp] ~(def ,(first tp) ,(defprim (last tp)))) type-pairs))
 
 (def Array :array)
 (def Tuple :tuple)
@@ -33,7 +33,7 @@
 (def Function :function)
 (def CFunction :cfunction)
 
-(create-prim-types 
+(defprimitives
   [String :string]
   [Buffer :buffer]
   [Number :number]
@@ -149,7 +149,7 @@
 
   (defn tc-def [te e]
     (let [lhs (get e 1)
-          declared-type (create-type (extract-metadata (slice e 2 -1)))
+          declared-type (defprim (extract-metadata (slice e 2 -1)))
           inferred-type (tc te (last e))]
       (if (not (nil? (declared-type :name)))
         (assert-type declared-type inferred-type e))
@@ -170,7 +170,7 @@
       # :array (walk-ind f $f)
       :symbol (tc-symbol type-env expr)
       :tuple (tc-tuple type-env expr)
-      (create-type expr-type))))
+      (defprim expr-type))))
 
 (defmacro type-check
   ``Infers and validates the type of an expression.``
