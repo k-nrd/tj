@@ -1,6 +1,5 @@
 (def special-forms 
-  [:fn
-   :quote
+  [:quote
    :if
    :splice
    :while
@@ -16,11 +15,11 @@
       :function (and (= name1 (t2 :name)) (= (t1 :params) (t2 :params)) (= (t1 :ret) (t2 :ret)))
       (= (t1 :name) (t2 :name)))))
 
-(defn- defprim [name]
+(defn- to-type [name]
   {:name name})
 
-(defmacro- defprimitives [type-pairs]
-  ;(map (fn [(key name)] ~(def ,name ,(defprim key))) (pairs type-pairs)))
+(defmacro- deftypes [type-pairs]
+  ;(map (fn [(key name)] ~(def ,name ,(to-type key))) (pairs type-pairs)))
 
 (def Array :array)
 (def Tuple :tuple)
@@ -30,10 +29,9 @@
 (def Struct :struct)
 (def Dict :dict)
 
-(def Function :function)
 (def CFunction :cfunction)
 
-(defprimitives 
+(deftypes 
   {:string String
    :buffer Buffer
    :number Number
@@ -88,8 +86,6 @@
       :function (pp-function typ)))
   
   (pp-t typ))
-  
-  
 
 (def- DEFAULT-RECORD
   @{:+ (Function {:variadic Number} Number)})
@@ -106,7 +102,7 @@
       (and (nil? value) (nil? parent)) value 
       (get-type parent key))))
 
-(defn- set-type [type-env key value]
+(defn- set-type! [type-env key value]
   (put 
     (type-env :record) 
     (if (keyword? key)
@@ -148,7 +144,7 @@
   (defn tc-symbol [te e]
     (get-type te e))
 
-  (defn tc-application [te e]
+  (defn tc-application 
     `` Gets the type of the form being called, its parameters and its return.
     Throws if the types of the arguments do not align with the types of the parameters, or
     if the type of the return value does not align with the type declared.
@@ -156,13 +152,14 @@
     If no parameter types are declared, they will be considered Any
 
     Function types look like this:
-        (defn some-fn [num bool &opt thing & name1 name2 name3] num)
-        {:name :function 
-         :params {:positional [Number Boolean] 
-                  :optional [Any] 
-                  :variadic String}
-         :ret Number}
+    (defn some-fn [num bool &opt thing & name1 name2 name3] num)
+    {:name :function 
+     :params {:positional [Number Boolean] 
+              :optional [Any] 
+              :variadic String}
+     :ret Number}
     ``
+    [te e]
     (let [op-type (tc-symbol te (keyword (first e)))
           args (slice e 1)]
       (unless (nil? op-type)
@@ -185,7 +182,8 @@
               (assert-type (get optional-params i) (tc te opt-arg) e)))
           (unless no-variadic-params
             (each var-arg (slice args variadic-start)
-              (assert-type variadic-params (tc te var-arg) e)))))))
+              (assert-type variadic-params (tc te var-arg) e)))
+          return-type))))
 
   (defn tc-do [te e]
     (var res nil)
@@ -199,15 +197,33 @@
           inferred-type (tc te (last e))]
       (unless (nil? declared-type)
         (assert-type declared-type inferred-type e))
-      (set-type te lhs inferred-type)
-      inferred-type))
+      (set-type! te lhs declared-type)
+      declared-type))
 
   (defn tc-set [te e]
     (let [lhs (get e 1)
           inferred-type (tc te (last e))]
-      (set-type te lhs inferred-type)
+      (set-type! te lhs inferred-type)
       inferred-type))
 
+  (defn tc-fn 
+    ``Infers types for fn declarations.
+
+    (fn [] "yolo") -> {:name :function :ret String}
+    (fn [a &opt b & c] a) -> {:name :function :params {:positional [Any] :optional [Any] :variadic Any} :ret Any}
+    ``
+    [te e]
+    (let [params-or-name (get e 1)
+          anonymous (indexed? params-or-name)
+          name (if anonymous nil params-or-name)
+          params (if anonymous params-or-name (get e 2))
+          body (slice e (if anonymous 2 3))
+          declared-type (unless (nil? name) (tc te name))]
+      (printf "Declared type: %p" declared-type)
+      (unless (nil? declared-type)
+        declared-type
+        (Function nil Any))))
+      
   (defn tc-tuple [te e]
     (let [ef (macex e)]
       (case (keyword (first ef))
@@ -215,6 +231,7 @@
         :def (tc-def te ef)
         :var (tc-def te ef)
         :set (tc-set te ef)
+        :fn (tc-fn te ef)
         (tc-application te ef))))
     
   (let [expr-type (type expr)]
@@ -224,7 +241,7 @@
       # :array (walk-ind f $f)
       :symbol (tc-symbol type-env (keyword expr))
       :tuple (tc-tuple type-env expr)
-      (defprim expr-type))))
+      (to-type expr-type))))
 
 (defmacro type-check
   ``Infers and validates the type of an expression.``
@@ -261,6 +278,7 @@
   (type-check (var x 10))
   (type-check (def x :string 10))
   (type-check (var x :string nil))
+  (type-check (var x :string "string"))
   (type-check (do 
                 (var x nil)
                 (set x "string")
@@ -276,6 +294,7 @@
 
   (type-check (+ 1 2))
   (type-check (+ 1 "yo"))
+  (type-check (defn x {:type {:name :function :params nil :ret String}} [] "hello, world"))
 
   (type-check '(1 2 3))
 
