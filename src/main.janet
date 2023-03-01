@@ -1,3 +1,5 @@
+(import ./pretty-print :as pp)
+
 (def special-forms 
   [:quote
    :if
@@ -46,46 +48,6 @@
   {:name :function
    :params params 
    :ret ret})
-                
-(defn- pp-type [typ]
-  (defn- pp-function [typ]
-    (let [params (typ :params)
-          ret (typ :ret)]
-      (string 
-        "Function "
-        (unless (nil? params)
-          (let [positional (params :positional)
-                optional (params :optional)
-                variadic (params :variadic)]
-            (string 
-              (unless (nil? positional)
-                (string/format "%p " (map pp-type positional))
-                "")
-              (unless (nil? optional)
-                (string/format "&opt %p " (map pp-type optional))
-                "")
-              (unless (nil? variadic)
-                (string/format "& %p" (pp-type variadic))
-                "")))
-          "")
-        (unless (nil? ret)
-          (string/format "-> %p" (pp-type ret))
-          ""))))
-          
-  (defn- pp-t [typ]
-    (case (typ :name)
-      :string "String"
-      :buffer "Buffer"
-      :number "Number"
-      :nil "Nil"
-      :symbol "Symbol"
-      :boolean "Boolean"
-      :keyword "Keyword"
-      :fiber "Fiber"
-      :any "Any"
-      :function (pp-function typ)))
-  
-  (pp-t typ))
 
 (def- DEFAULT-RECORD
   @{:+ (Function {:variadic Number} Number)})
@@ -138,7 +100,7 @@
 
 (defn- assert-type [declared inferred expr]
   (unless (same-type? declared inferred)
-    (errorf "\n\tDeclared %s type in %p, but %p is a %s.\n" (pp-type declared) expr (last expr) (pp-type inferred))))
+    (errorf "\n\tDeclared %s type in %p, but %p is a %s.\n" (pp/pp-type declared) expr (last expr) (pp/pp-type inferred))))
         
 (defn- tc [type-env expr]
   (defn tc-symbol [te e]
@@ -269,7 +231,7 @@
   (extract-metadata [:a :b])
 
   # not quite right
-  (pp-type (Function {:variadic Number} Number))
+  (pp/pp-type (Function {:variadic Number} Number))
 
   (type-check 10)
   (type-check "string")
